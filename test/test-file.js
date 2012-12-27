@@ -189,6 +189,72 @@ exports.testOpenTypes = function (test) {
   file.remove(filename);
 };
 
+exports.testReadWrite = function (test) {
+  let filename = file.join(profilePath, 'open.txt');
+
+  file.write(filename, "Hello ReadWrite");
+
+  test.assert(file.exists(filename),
+              "file.exists() should return true after file.open('w')");
+
+  let content = file.read(filename);
+  test.assertEqual(content, "Hello ReadWrite", "file should contain the content written before");
+
+  file.remove(filename);
+}
+
+
+exports.testBinaryReadWrite = function (test) {
+  let filename = file.join(profilePath, 'open.txt');
+
+  file.write(filename, "ABC", "b");
+
+  test.assert(file.exists(filename),
+              "file.exists() should return true after file.open('w')");
+
+  let content = file.read(filename, "b");
+  test.assertEqual(content, "ABC", "file should contain the content written before");
+
+  file.remove(filename);
+}
+
+exports.testReadWriteWithStream = function (test) {
+  let filename = file.join(profilePath, 'open.txt');
+
+  let stream = file.open(filename, "w");
+  stream.write("Hello ReadWriteWithStream");
+  stream.close();
+
+  test.assert(file.exists(filename),
+              "file.exists() should return true after file.open('w')");
+
+  stream = file.open(filename, "r");
+  let content = stream.read();
+  stream.close();
+  test.assertEqual(content, "Hello ReadWriteWithStream", "file should contain the content written before");
+
+  file.remove(filename);
+}
+
+exports.testBinaryReadWriteWithStream = function (test) {
+  let filename = file.join(profilePath, 'open.txt');
+
+  let stream = file.open(filename, "wb");
+  stream.write("Hello ReadWriteWithStream");
+  stream.close();
+
+  test.assert(file.exists(filename),
+              "file.exists() should return true after file.open('w')");
+
+  stream = file.open(filename, "rb");
+  let content = stream.read();
+  stream.close();
+  test.assertEqual(content, "Hello ReadWriteWithStream", "file should contain the content written before");
+
+  file.remove(filename);
+}
+
+
 exports.testMkpathRmdir = function (test) {
   let basePath = profilePath;
   let dirs = [];

@@ -135,6 +135,20 @@ more about escaping characters in strings at
   A string containing the file's entire contents.
 </api>
 
+<api name="write">
+@function
+  Opens a file and store the given content in it.
+@param path {string}
+  The path of the file to write.
+@param content {string}
+  The content to write into the file
+@param [mode] {string}
+  An optional string, each character of which describes a characteristic of the
+  given content.  If the string contains `"b"`, the contents will be written
+  in binary mode. If `"b"` is not present or `mode` is not given,
+  the contents will be written in text mode
+</api>
+
 <api name="remove">
 @function
   Removes a file from the file system.  To remove directories, use `rmdir`.
