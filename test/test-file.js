@@ -337,3 +337,24 @@ exports.testRmdirNonempty = function (test) {
   file.rmdir(path);
   test.assert(!file.exists(path), "Path should not exist");
 };
+
+exports.testCopy = function(test) {
+  let filename = file.join(profilePath, 'open.txt');
+  let filename2 = file.join(profilePath, 'open2.txt');
+
+  file.write(filename, "Hello testCopy");
+
+  test.assert(file.exists(filename),
+              "file.exists() should return true after file.write");
+
+  file.copy(filename, filename2);
+
+  test.assert(file.exists(filename2),
+              "file.exists() should return true after file.copy");
+  
+  let content = file.read(filename2);
+  test.assertEqual(content, "Hello testCopy", "copy of the file should contain the same content as the source file");
+
+  //file.remove(filename);
+  //file.remove(filename2);
+}
