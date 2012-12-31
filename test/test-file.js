@@ -140,6 +140,22 @@ exports.testOpenNonexistentForWrite = function (test) {
               "file.exists() should return false after file.remove()");
 };
 
+exports.testChangeWorkingDirectory = function (test) {
+  let filename = file.join(profilePath, 'open.txt');
+  let currDir = file.workingDirectory();
+
+  file.changeWorkingDirectory(profilePath);
+
+  let stream = file.open('open.txt', "w");
+  stream.close();
+
+  test.assert(file.exists(filename),
+              "file.exists() should return true after file.open('w')");
+  file.remove(filename);
+
+  file.changeWorkingDirectory(currDir);
+};
+
 exports.testOpenDirectory = function (test) {
   let dir = dirPathInProfile;
   test.assertRaises(function() {
@@ -355,6 +371,7 @@ exports.testCopy = function(test) {
   let content = file.read(filename2);
   test.assertEqual(content, "Hello testCopy", "copy of the file should contain the same content as the source file");
 
-  //file.remove(filename);
-  //file.remove(filename2);
+  file.remove(filename);
+  file.remove(filename2);
 }
+
