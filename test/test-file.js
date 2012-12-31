@@ -420,3 +420,26 @@ exports.testMove = function(test) {
 
   file.remove(filename2);
 }
+
+
+exports.testTouch = function(test) {
+  let filename = file.join(profilePath, 'open.txt');
+  let filename2 = file.join(profilePath, 'open2.txt');
+
+  file.write(filename, "Hello testTouch");
+
+  test.assert(file.exists(filename),
+              "file.exists() should return true after file.write");
+
+  file.touch(filename);
+
+  file.touch(filename2);
+
+  test.assert(file.exists(filename2),
+              "file.exists() should return true for new file after file.touch");
+
+  let content = file.read(filename2);
+  test.assertEqual(content, "", "touch: new file should have no content");
+  file.remove(filename);
+  file.remove(filename2);
+}
