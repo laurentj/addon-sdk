@@ -375,3 +375,48 @@ exports.testCopy = function(test) {
   file.remove(filename2);
 }
 
+exports.testRename = function(test) {
+  let filename = file.join(profilePath, 'open.txt');
+  let filename2 = file.join(profilePath, 'open2.txt');
+
+  file.write(filename, "Hello testRename");
+
+  test.assert(file.exists(filename),
+              "file.exists() should return true after file.write");
+
+  file.rename(filename, 'open2.txt');
+
+  test.assert(!file.exists(filename),
+              "file.exists() should return false for old file after file.rename");
+
+  test.assert(file.exists(filename2),
+              "file.exists() should return true for new file after file.rename");
+  
+  let content = file.read(filename2);
+  test.assertEqual(content, "Hello testRename", "rename: new file should contain the same content as the old file");
+
+  file.remove(filename2);
+}
+
+exports.testMove = function(test) {
+  let filename = file.join(profilePath, 'open.txt');
+  let filename2 = file.join(profilePath, 'open2.txt');
+
+  file.write(filename, "Hello testMove");
+
+  test.assert(file.exists(filename),
+              "file.exists() should return true after file.write");
+
+  file.move(filename, filename2);
+
+  test.assert(!file.exists(filename),
+              "file.exists() should return false for old file after file.move");
+
+  test.assert(file.exists(filename2),
+              "file.exists() should return true for new file after file.move");
+  
+  let content = file.read(filename2);
+  test.assertEqual(content, "Hello testMove", "move: new file should contain the same content as the old file");
+
+  file.remove(filename2);
+}
