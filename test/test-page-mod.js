@@ -340,10 +340,12 @@ exports.testRelatedTab = function(test) {
   let pageMod = new PageMod({
     include: "about:*",
     onAttach: function(worker) {
+      test.assert(!!worker.tab, "Worker.tab exists");
       test.assertEqual(tab, worker.tab, "Worker.tab is valid");
       pageMod.destroy();
-      tab.close();
-      test.done();
+      tab.close(function() {
+        test.done();
+      });
     }
   });
 
@@ -353,7 +355,28 @@ exports.testRelatedTab = function(test) {
       tab = t;
     }
   });
+};
 
+exports.testRelatedTabNoOtherReqs = function(test) {
+  test.waitUntilDone();
+
+  let loader = Loader(module);
+  let { PageMod } = loader.require("sdk/page-mod");
+  let pageMod = new PageMod({
+    include: "about:*",
+    onAttach: function(worker) {
+      test.assert(!!worker.tab, "Worker.tab exists");
+      pageMod.destroy();
+      worker.tab.close(function() {
+        loader.unload();
+        test.done();
+      });
+    }
+  });
+
+  tabs.open({
+    url: "about:"
+  });
 };
 
 exports.testWorksWithExistingTabs = function(test) {
@@ -368,6 +391,7 @@ exports.testWorksWithExistingTabs = function(test) {
         include: url,
         attachTo: ["existing", "top", "frame"],
         onAttach: function(worker) {
+          test.assert(!!worker.tab, "Worker.tab exists");
           test.assertEqual(tab, worker.tab, "A worker has been created on this existing tab");
 
           timer.setTimeout(function() {
@@ -661,7 +685,7 @@ exports.testContentScriptOptionsOption = function(test) {
 exports.testPageModCss = function(test) {
   let [pageMod] = testPageMod(test,
     'data:text/html;charset=utf-8,<div style="background: silver">css test</div>', [{
-      include: "data:*",
+      include: ["*", "data:*"],
       contentStyle: "div { height: 100px; }",
       contentStyleFile:
         require("sdk/self").data.url("pagemod-css-include-file.css")
@@ -968,6 +992,31 @@ exports.testIFramePostMessage = function(test) {
       });
     }
   });
+};
+
+exports.testEvents = function(test) {
+  let content = "<script>\n new " + function DocumentScope() {
+    window.addEventListener("ContentScriptEvent", function () {
+      window.receivedEvent = true;
+    }, false);
+  } + "\n</script>";
+  let url = "data:text/html;charset=utf-8," + encodeURIComponent(content);
+  testPageMod(test, url, [{
+      include: "data:*",
+      contentScript: 'new ' + function WorkerScope() {
+        let evt = document.createEvent("Event");
+        evt.initEvent("ContentScriptEvent", true, true);
+        document.body.dispatchEvent(evt);
+      }
+    }],
+    function(win, done) {
+      test.assert(
+        win.receivedEvent,
+        "Content script sent an event and document received it"
+      );
+      done();
+    }
+  );
 };
 
 if (require("sdk/system/xul-app").is("Fennec")) {

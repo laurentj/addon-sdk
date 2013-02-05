@@ -19,6 +19,28 @@ const OVERFLOW_POPUP_CLASS = "addon-content-menu-overflow-popup";
 
 const TEST_DOC_URL = module.uri.replace(/\.js$/, ".html");
 
+// Tests that when present the separator is placed before the separator from
+// the old context-menu module
+exports.testSeparatorPosition = function (test) {
+  test = new TestHelper(test);
+  let loader = test.newLoader();
+
+  // Create the old separator
+  let oldSeparator = test.contextMenuPopup.ownerDocument.createElement("menuseparator");
+  oldSeparator.id = "jetpack-context-menu-separator";
+  test.contextMenuPopup.appendChild(oldSeparator);
+
+  // Create an item.
+  let item = new loader.cm.Item({ label: "item" });
+
+  test.showMenu(null, function (popup) {
+    test.assertEqual(test.contextMenuSeparator.nextSibling.nextSibling, oldSeparator,
+                     "New separator should appear before the old one");
+    test.contextMenuPopup.removeChild(oldSeparator);
+    test.done();
+  });
+};
+
 // Destroying items that were previously created should cause them to be absent
 // from the menu.
 exports.testConstructDestroy = function (test) {
@@ -421,7 +443,7 @@ exports.testURLContextRemove = function (test) {
   let item = loader.cm.Item({
     label: "item",
     context: context,
-    contentScript: 'self.postMessage("ok");',
+    contentScript: 'self.postMessage("ok"); self.on("context", function () true);',
     onMessage: function (msg) {
       test.assert(shouldBeEvaled,
                   "content script should be evaluated when expected");
@@ -529,6 +551,82 @@ exports.testContentContextNoMatch = function (test) {
   test.showMenu(null, function (popup) {
     test.checkMenu([item], [item], []);
     test.done();
+  });
+};
+
+
+// Content contexts that return true should cause their items to be present
+// in the menu when context clicking an active element.
+exports.testContentContextMatchActiveElement = function (test) {
+  test = new TestHelper(test);
+  let loader = test.newLoader();
+
+  let items = [
+    new loader.cm.Item({
+      label: "item 1",
+      contentScript: 'self.on("context", function () true);'
+    }),
+    new loader.cm.Item({
+      label: "item 2",
+      context: undefined,
+      contentScript: 'self.on("context", function () true);'
+    }),
+    // These items will always be hidden by the declarative usage of PageContext
+    new loader.cm.Item({
+      label: "item 3",
+      context: loader.cm.PageContext(),
+      contentScript: 'self.on("context", function () true);'
+    }),
+    new loader.cm.Item({
+      label: "item 4",
+      context: [loader.cm.PageContext()],
+      contentScript: 'self.on("context", function () true);'
+    })
+  ];
+
+  test.withTestDoc(function (window, doc) {
+    test.showMenu(doc.getElementById("image"), function (popup) {
+      test.checkMenu(items, [items[2], items[3]], []);
+      test.done();
+    });
+  });
+};
+
+
+// Content contexts that return false should cause their items to be absent
+// from the menu when context clicking an active element.
+exports.testContentContextNoMatchActiveElement = function (test) {
+  test = new TestHelper(test);
+  let loader = test.newLoader();
+
+  let items = [
+    new loader.cm.Item({
+      label: "item 1",
+      contentScript: 'self.on("context", function () false);'
+    }),
+    new loader.cm.Item({
+      label: "item 2",
+      context: undefined,
+      contentScript: 'self.on("context", function () false);'
+    }),
+    // These items will always be hidden by the declarative usage of PageContext
+    new loader.cm.Item({
+      label: "item 3",
+      context: loader.cm.PageContext(),
+      contentScript: 'self.on("context", function () false);'
+    }),
+    new loader.cm.Item({
+      label: "item 4",
+      context: [loader.cm.PageContext()],
+      contentScript: 'self.on("context", function () false);'
+    })
+  ];
+
+  test.withTestDoc(function (window, doc) {
+    test.showMenu(doc.getElementById("image"), function (popup) {
+      test.checkMenu(items, items, []);
+      test.done();
+    });
   });
 };
 
@@ -1955,6 +2053,43 @@ exports.testSubItemContextMatch = function (test) {
   });
 };
 
+
+// Child items should default to visible, not to PageContext
+exports.testSubItemDefaultVisible = function (test) {
+  test = new TestHelper(test);
+  let loader = test.newLoader();
+
+  let items = [
+    loader.cm.Menu({
+      label: "menu 1",
+      context: loader.cm.SelectorContext("img"),
+      items: [
+        loader.cm.Item({
+          label: "subitem 1"
+        }),
+        loader.cm.Item({
+          label: "subitem 2",
+          context: loader.cm.SelectorContext("img")
+        }),
+        loader.cm.Item({
+          label: "subitem 3",
+          context: loader.cm.SelectorContext("a")
+        })
+      ]
+    })
+  ];
+
+  // subitem 3 will be hidden
+  let hiddenItems = [items[0].items[2]];
+
+  test.withTestDoc(function (window, doc) {
+    test.showMenu(doc.getElementById("image"), function (popup) {
+      test.checkMenu(items, hiddenItems, []);
+      test.done();
+    });
+  });
+};
+
 exports.testSubItemClick = function (test) {
   test = new TestHelper(test);
   let loader = test.newLoader();
@@ -2172,12 +2307,22 @@ TestHelper.prototype = {
     if (itemType === "Item" || itemType === "Menu") {
       this.test.assertEqual(elt.getAttribute("label"), item.label,
                             "Item should have correct title");
-      if (typeof(item.image) === "string")
+      if (typeof(item.image) === "string") {
         this.test.assertEqual(elt.getAttribute("image"), item.image,
                               "Item should have correct image");
-      else
+        if (itemType === "Menu")
+          this.test.assert(elt.classList.contains("menu-iconic"),
+                           "Menus with images should have the correct class")
+        else
+          this.test.assert(elt.classList.contains("menuitem-iconic"),
+                           "Items with images should have the correct class")
+      }
+      else {
         this.test.assert(!elt.getAttribute("image"),
                          "Item should not have image");
+        this.test.assert(!elt.classList.contains("menu-iconic") && !elt.classList.contains("menuitem-iconic"),
+                         "The iconic classes should not be present")
+      }
     }
   },
 
