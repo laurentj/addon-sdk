@@ -64,6 +64,16 @@ exports.testBasename = function(test) {
                    "basename should work on paths with multiple components");
 };
 
+exports.testExtension = function(test) {
+    test.assertEqual(file.extension(filePathInProfile), "ini", "extension of compatibility.ini should be 'ini'");
+    test.assertEqual(file.extension(file.join(profilePath, "foo.bar.baz")), "baz", "extension of foo.bar.baz should be 'baz'");
+}
+
+exports.testLastModified = function(test) {
+    var d = file.lastModified(filePathInProfile);
+    test.assertEqual(typeof d, "object", "type of the value of lastModified");
+}
+
 exports.testList = function(test) {
   let list = file.list(profilePath);
   let found = [ true for each (name in list)
