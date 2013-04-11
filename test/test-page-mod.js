@@ -3,16 +3,22 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 "use strict";
 
-var pageMod = require("sdk/page-mod");
-var testPageMod = require("./pagemod-test-helpers").testPageMod;
+const { PageMod } = require("sdk/page-mod");
+const testPageMod = require("./pagemod-test-helpers").testPageMod;
 const { Loader } = require('sdk/test/loader');
 const tabs = require("sdk/tabs");
 const timer = require("sdk/timers");
 const { Cc, Ci } = require("chrome");
 const { open, getFrames, getMostRecentBrowserWindow } = require('sdk/window/utils');
 const windowUtils = require('sdk/deprecated/window-utils');
-const { getTabContentWindow, getActiveTab, openTab, closeTab } = require('sdk/tabs/utils');
-const { data } = require('self');
+const { getTabContentWindow, getActiveTab, setTabURL, openTab, closeTab } = require('sdk/tabs/utils');
+const xulApp = require("sdk/system/xul-app");
+const { data, isPrivateBrowsingSupported } = require('sdk/self');
+const { isPrivate } = require('sdk/private-browsing');
+const { openWebpage } = require('./private-browsing/helper');
+const { isTabPBSupported, isWindowPBSupported, isGlobalPBSupported } = require('sdk/private-browsing/utils');
+const promise = require("sdk/core/promise");
+const { pb } = require('./private-browsing/helper');
 
 /* XXX This can be used to delay closing the test Firefox instance for interactive
  * testing or visual inspection. This test is registered first so that it runs
@@ -21,8 +27,10 @@ exports.delay = function(test) {
   if (false) {
     test.waitUntilDone(60000);
     timer.setTimeout(function() {test.done();}, 4000);
-  } else
+  }
+  else {
     test.pass();
+  }
 }
 
 function Isolate(worker) {
@@ -133,7 +141,7 @@ exports.testPageModIncludes = function(test) {
 
 exports.testPageModErrorHandling = function(test) {
   test.assertRaises(function() {
-      new pageMod.PageMod();
+      new PageMod();
     },
     'pattern is undefined',
     "PageMod() throws when 'include' option is not specified.");
@@ -336,7 +344,6 @@ exports.testRelatedTab = function(test) {
   test.waitUntilDone();
 
   let tab;
-  let { PageMod } = require("sdk/page-mod");
   let pageMod = new PageMod({
     include: "about:*",
     onAttach: function(worker) {
@@ -357,17 +364,39 @@ exports.testRelatedTab = function(test) {
   });
 };
 
+exports.testRelatedTabNoRequireTab = function(test) {
+  test.waitUntilDone();
+
+  let loader = Loader(module);
+  let tab;
+  let url = "data:text/html;charset=utf-8," + encodeURI("Test related worker tab 2");
+  let { PageMod } = loader.require("sdk/page-mod");
+  let pageMod = new PageMod({
+    include: url,
+    onAttach: function(worker) {
+      test.assertEqual(worker.tab.url, url, "Worker.tab.url is valid");
+      worker.tab.close();
+      pageMod.destroy();
+      loader.unload();
+      test.done();
+    }
+  });
+
+  tabs.open(url);
+};
+
 exports.testRelatedTabNoOtherReqs = function(test) {
   test.waitUntilDone();
 
   let loader = Loader(module);
   let { PageMod } = loader.require("sdk/page-mod");
   let pageMod = new PageMod({
-    include: "about:*",
+    include: "about:blank?testRelatedTabNoOtherReqs",
     onAttach: function(worker) {
       test.assert(!!worker.tab, "Worker.tab exists");
       pageMod.destroy();
       worker.tab.close(function() {
+        worker.destroy();
         loader.unload();
         test.done();
       });
@@ -375,7 +404,7 @@ exports.testRelatedTabNoOtherReqs = function(test) {
   });
 
   tabs.open({
-    url: "about:"
+    url: "about:blank?testRelatedTabNoOtherReqs"
   });
 };
 
@@ -413,7 +442,7 @@ exports.testWorksWithExistingTabs = function(test) {
   });
 };
 
-exports['test tab worker on message'] = function(test) {
+exports.testTabWorkerOnMessage = function(test) {
   test.waitUntilDone();
 
   let { browserWindows } = require("sdk/windows");
@@ -485,7 +514,7 @@ exports.testAutomaticDestroy = function(test) {
 
 }
 
-exports['test attachment to tabs only'] = function(test) {
+exports.testAttachToTabsOnly = function(test) {
   test.waitUntilDone();
 
   let { PageMod } = require('sdk/page-mod');
@@ -522,7 +551,13 @@ exports['test attachment to tabs only'] = function(test) {
         element.addEventListener('DOMContentLoaded', function onload() {
           element.removeEventListener('DOMContentLoaded', onload, false);
           hiddenFrames.remove(hiddenFrame);
-          openToplevelWindow();
+
+          if (!xulApp.is("Fennec")) {
+            openToplevelWindow();
+          }
+          else {
+            openBrowserIframe();
+          }
         }, false);
         element.setAttribute('src', 'data:text/html;charset=utf-8,foo');
       }
@@ -558,7 +593,7 @@ exports['test attachment to tabs only'] = function(test) {
   function openTabWithIframes() {
     console.info('Open iframes in a tab');
     let subContent = '<iframe src="data:text/html;charset=utf-8,sub frame" />'
-    let content = '<iframe src="data:text/html,' +
+    let content = '<iframe src="data:text/html;charset=utf-8,' +
                   encodeURIComponent(subContent) + '" />';
     require('sdk/tabs').open({
       url: 'data:text/html;charset=utf-8,' + encodeURIComponent(content),
@@ -633,7 +668,7 @@ exports['test111 attachTo [frame]'] = function(test) {
     this.destroy();
     if (++messageCount == 2) {
       mod.destroy();
-      require('tabs').activeTab.close(function() {
+      require('sdk/tabs').activeTab.close(function() {
         test.done();
       });
     }
@@ -716,7 +751,7 @@ exports.testPageModCssList = function(test) {
         "data:text/css;charset=utf-8,div { border: 1px solid black; }",
         "data:text/css;charset=utf-8,div { border: 10px solid black; }",
         // Highlight evaluation order between contentStylesheet & contentStylesheetFile
-        "data:text/cs;charset=utf-8s,div { height: 1000px; }",
+        "data:text/css;charset=utf-8s,div { height: 1000px; }",
         // Highlight precedence between the author and user style sheet
         "data:text/css;charset=utf-8,div { width: 200px; max-width: 640px!important}",
       ],
@@ -744,13 +779,13 @@ exports.testPageModCssList = function(test) {
       test.assertEqual(
         style.width,
         "320px",
-        "PageMod author/user style sheet precedence works"
+        "PageMod add-on author/page author style sheet precedence works"
       );
 
       test.assertEqual(
         style.maxWidth,
-        "640px",
-        "PageMod author/user style sheet precedence with !important works"
+        "480px",
+        "PageMod add-on author/page author style sheet precedence with !important works"
       );
 
       done();
@@ -792,7 +827,7 @@ exports.testPageModCssAutomaticDestroy = function(test) {
   test.waitUntilDone();
   let loader = Loader(module);
 
-  let pageMod = loader.require("page-mod").PageMod({
+  let pageMod = loader.require("sdk/page-mod").PageMod({
     include: "data:*",
     contentStyle: "div { width: 100px!important; }"
   });
@@ -804,8 +839,8 @@ exports.testPageModCssAutomaticDestroy = function(test) {
       let browserWindow = windowUtils.activeBrowserWindow;
       let win = getTabContentWindow(getActiveTab(browserWindow));
 
-      let div = win.document.querySelector("div"),
-          style = win.getComputedStyle(div);
+      let div = win.document.querySelector("div");
+      let style = win.getComputedStyle(div);
 
       test.assertEqual(
         style.width,
@@ -832,7 +867,7 @@ exports.testPageModTimeout = function(test) {
   test.waitUntilDone();
   let tab = null
   let loader = Loader(module);
-  let { PageMod } = loader.require("page-mod");
+  let { PageMod } = loader.require("sdk/page-mod");
 
   let mod = PageMod({
     include: "data:*",
@@ -867,7 +902,7 @@ exports.testPageModcancelTimeout = function(test) {
   test.waitUntilDone();
   let tab = null
   let loader = Loader(module);
-  let { PageMod } = loader.require("page-mod");
+  let { PageMod } = loader.require("sdk/page-mod");
 
   let mod = PageMod({
     include: "data:*",
@@ -924,7 +959,7 @@ exports.testExistingOnFrames = function(test) {
       return;
     }
 
-    let pagemodOnExisting = pageMod.PageMod({
+    let pagemodOnExisting = PageMod({
       include: ["*", "data:*"],
       attachTo: ["existing", "frame"],
       contentScriptWhen: 'ready',
@@ -959,7 +994,7 @@ exports.testExistingOnFrames = function(test) {
       }
     });
 
-    let pagemodOffExisting = pageMod.PageMod({
+    let pagemodOffExisting = PageMod({
       include: ["*", "data:*"],
       attachTo: ["frame"],
       contentScriptWhen: 'ready',
@@ -974,14 +1009,16 @@ exports.testExistingOnFrames = function(test) {
 
 exports.testIFramePostMessage = function(test) {
   test.waitUntilDone();
+  let count = 0;
 
   tabs.open({
     url: data.url("test-iframe.html"),
     onReady: function(tab) {
       var worker = tab.attach({
         contentScriptFile: data.url('test-iframe.js'),
-        contentScript: ' var iframePath = \'' + data.url('test-iframe-postmessage.html') + '\'',
+        contentScript: 'var iframePath = \'' + data.url('test-iframe-postmessage.html') + '\'',
         onMessage: function(msg) {
+          test.assertEqual(++count, 1);
           test.assertEqual(msg.first, 'a string');
           test.assert(msg.second[1], "array");
           test.assertEqual(typeof msg.third, 'object');
@@ -1019,13 +1056,74 @@ exports.testEvents = function(test) {
   );
 };
 
-if (require("sdk/system/xul-app").is("Fennec")) {
+exports["test page-mod on private tab"] = function (test) {
+  test.waitUntilDone();
+  let privateUri = "data:text/html;charset=utf-8," +
+                   "<iframe src=\"data:text/html;charset=utf-8,frame\" />";
+  let nonPrivateUri = "data:text/html;charset=utf-8,non-private";
 
-  module.exports = {
-    "test Unsupported Test": function UnsupportedTest (test) {
-        test.pass(
-          "Skipping this test until Fennec support is implemented." +
-          "See bug 784224");
+  let pageMod = new PageMod({
+    include: "data:*",
+    onAttach: function(worker) {
+      if (isTabPBSupported || isWindowPBSupported) {
+        // When PB isn't supported, the page-mod will apply to all document
+        // as all of them will be non-private
+        test.assertEqual(worker.tab.url,
+                         nonPrivateUri,
+                         "page-mod should only attach to the non-private tab");
+      }
+      test.assert(!isPrivate(worker),
+                  "The worker is really non-private");
+      test.assert(!isPrivate(worker.tab),
+                  "The document is really non-private");
+      pageMod.destroy();
+      page1.close().then(page2.close).then(test.done.bind(test));
     }
+  });
+
+  let page1 = openWebpage(privateUri, true);
+  let page2 = openWebpage(nonPrivateUri, false);
+}
+
+exports["test page-mod on private tab in global pb"] = function (test) {
+  test.waitUntilDone();
+  if (!isGlobalPBSupported) {
+    test.pass();
+    return test.done();
   }
+
+  let privateUri = "data:text/html;charset=utf-8," +
+                   "<iframe%20src=\"data:text/html;charset=utf-8,frame\"/>";
+
+  let pageMod = new PageMod({
+    include: privateUri,
+    onAttach: function(worker) {
+      test.assertEqual(worker.tab.url,
+                       privateUri,
+                       "page-mod should attach");
+      test.assertEqual(isPrivateBrowsingSupported,
+                       false,
+                       "private browsing is not supported");
+      test.assert(isPrivate(worker),
+                  "The worker is really non-private");
+      test.assert(isPrivate(worker.tab),
+                  "The document is really non-private");
+      pageMod.destroy();
+
+      worker.tab.close(function() {
+        pb.once('stop', function() {
+          test.pass('global pb stop');
+          test.done();
+        });
+        pb.deactivate();
+      });
+    }
+  });
+
+  let page1;
+  pb.once('start', function() {
+    test.pass('global pb start');
+    tabs.open({ url: privateUri });
+  });
+  pb.activate();
 }
