@@ -112,16 +112,6 @@ exports.testSeparator = function(test) {
               "file.separator should give a separator");
 };
 
-exports.testIsWindows = function(test) {
-    if (file.separator == '\\')
-        test.assert(file.isWindows(),
-                    "file.isWindows() should give a true as we are under windows");
-    else if (file.separator == '/')
-        test.assert(file.isWindows() === false,
-                    "file.isWindows() should give a boolean");
-    else test.assert(false, "file.isWindows() cannot be tested, separator is unknown")
-};
-
 exports.testJoin = function(test) {
   let baseDir = file.dirname(filePathInProfile);
 
