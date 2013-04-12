@@ -106,6 +106,22 @@ exports.testRead = function(test) {
   }, ERRORS.NOT_A_FILE, "file.read() on dir should throw");
 };
 
+
+exports.testSeparator = function(test) {
+  test.assert(file.separator == '/' || file.separator == '\\',
+              "file.separator should give a separator");
+};
+
+exports.testIsWindows = function(test) {
+    if (file.separator == '\\')
+        test.assert(file.isWindows(),
+                    "file.isWindows() should give a true as we are under windows");
+    else if (file.separator == '/')
+        test.assert(file.isWindows() === false,
+                    "file.isWindows() should give a boolean");
+    else test.assert(false, "file.isWindows() cannot be tested, separator is unknown")
+};
+
 exports.testJoin = function(test) {
   let baseDir = file.dirname(filePathInProfile);
 
