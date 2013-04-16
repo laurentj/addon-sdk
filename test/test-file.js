@@ -119,6 +119,14 @@ exports.testJoin = function(test) {
                    filePathInProfile, "file.join() should work");
 };
 
+exports.testSplit = function (test) {
+    var fileComp = file.split(filePathInProfile);
+    test.assert(Array.isArray(fileComp), "Result of split should be an array");
+    test.assert(fileComp.length > 3, "array should have at least 3 elements (mozilla dir, the profile dir, 'compatibility.ini')")
+    test.assertEqual(fileComp.pop(), "compatibility.ini");
+}
+
+
 exports.testOpenNonexistentForRead = function (test) {
   var filename = file.join(profilePath, 'does-not-exists');
   test.assertRaises(function() {
@@ -458,4 +466,24 @@ exports.testTouch = function(test) {
   test.assertEqual(content, "", "touch: new file should have no content");
   file.remove(filename);
   file.remove(filename2);
+}
+
+exports.testAbsolute = function(test) {
+  let currDir = file.workingDirectory();
+  let dir = profilePath;
+  let path = file.join(dir, "test-dir");
+  file.mkpath(path);
+  let path2 = file.join(path, 'subdir')
+  file.mkpath(path2);
+
+  file.changeWorkingDirectory(path2);
+
+  test.assertEqual(file.absolute('../hello.txt'),
+              file.join(path, 'hello.txt'),
+              "file.absolute support relative path");
+  test.assertEqual(file.absolute(path2+'/../hello.txt'),
+              file.join(path, 'hello.txt'),
+              "file.absolute support path containing '..'");
+
+  file.changeWorkingDirectory(currDir);
 }
