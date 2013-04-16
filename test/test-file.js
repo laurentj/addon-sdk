@@ -295,7 +295,7 @@ exports.testBinaryReadWriteWithStream = function (test) {
 }
 
 
-exports.testMkpathRmdir = function (test) {
+exports.testMakeDirectoryRmdir = function (test) {
   let basePath = profilePath;
   let dirs = [];
   for (let i = 0; i < 3; i++)
@@ -312,14 +312,46 @@ exports.testMkpathRmdir = function (test) {
                 "Sanity check: path should not exist: " + paths[i]);
   }
 
-  file.mkpath(paths[0]);
-  test.assert(file.exists(paths[0]), "mkpath should create path: " + paths[0]);
+  test.assertRaises(function() file.makeDirectory(paths[0]),
+                    /^The parent directory does not exist$/,
+                    "makeDirectory on inexistant parent directory should raise error");
+
+  for (let i = paths.length-1; i >= 0 ; i--) {
+    file.makeDirectory(paths[i]);
+  }
+
+  test.assert(file.exists(paths[0]), "makeDirectory should create path: " + paths[0]);
 
   for (let i = 0; i < paths.length; i++) {
     file.rmdir(paths[i]);
     test.assert(!file.exists(paths[i]),
                 "rmdir should remove path: " + paths[i]);
   }
+};
+
+
+exports.testMakeTreeRemoveTree = function (test) {
+  let basePath = profilePath;
+  let dirs = [];
+  for (let i = 0; i < 3; i++)
+    dirs.push("test-file-dir");
+
+  let paths = [];
+  for (let i = 0; i < dirs.length; i++) {
+    let args = [basePath].concat(dirs.slice(0, i + 1));
+    paths.unshift(file.join.apply(null, args));
+  }
+
+  for (let i = 0; i < paths.length; i++) {
+    test.assert(!file.exists(paths[i]),
+                "Sanity check: path should not exist: " + paths[i]);
+  }
+
+  file.makeTree(paths[0]);
+  test.assert(file.exists(paths[0]), "mkpath should create path: " + paths[0]);
+
+  file.removeTree(paths[2]);
+  test.assert(!file.exists(paths[2]), "removeTree should delete path and its children: " + paths[2]);
 };
 
 exports.testMkpathTwice = function (test) {
