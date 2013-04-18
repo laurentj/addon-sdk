@@ -206,6 +206,26 @@ exports.testOpenTypes = function (test) {
               "open(wb) should return a ByteWriter");
   stream.close();
 
+  stream = file.open(filename, "a");
+  test.assert(stream instanceof textStreams.TextWriter,
+              "open(a) should return a TextWriter");
+  stream.close();
+
+  stream = file.open(filename, "ab");
+  test.assert(stream instanceof byteStreams.ByteWriter,
+              "open(a) should return a ByteWriter");
+  stream.close();
+
+  stream = file.open(filename, "wa");
+  test.assert(stream instanceof textStreams.TextWriter,
+              "open(wa) should return a TextWriter");
+  stream.close();
+
+  stream = file.open(filename, "wab");
+  test.assert(stream instanceof byteStreams.ByteWriter,
+              "open(wa) should return a TextWriter");
+  stream.close();
+
   stream = file.open(filename);
   test.assert(stream instanceof textStreams.TextReader,
               "open() should return a TextReader");
@@ -240,6 +260,11 @@ exports.testReadWrite = function (test) {
   let content = file.read(filename);
   test.assertEqual(content, "Hello ReadWrite", "file should contain the content written before");
 
+  file.write(filename, " and WriteAppend", "a");
+
+  content = file.read(filename);
+  test.assertEqual(content, "Hello ReadWrite and WriteAppend", "file should contain the content appended before");
+
   file.remove(filename);
 }
 
@@ -254,6 +279,10 @@ exports.testBinaryReadWrite = function (test) {
 
   let content = file.read(filename, "b");
   test.assertEqual(content, "ABC", "file should contain the content written before");
+
+  file.write(filename, "DEF", "ba");
+  content = file.read(filename, "b");
+  test.assertEqual(content, "ABCDEF", "file should contain the content appended before");
 
   file.remove(filename);
 }
@@ -272,6 +301,15 @@ exports.testReadWriteWithStream = function (test) {
   let content = stream.read();
   stream.close();
   test.assertEqual(content, "Hello ReadWriteWithStream", "file should contain the content written before");
+
+  stream = file.open(filename, "a");
+  stream.write(" and with appended content");
+  stream.close();
+
+  stream = file.open(filename, "r");
+  content = stream.read();
+  stream.close();
+  test.assertEqual(content, "Hello ReadWriteWithStream and with appended content", "file should contain the content appended before");
 
   file.remove(filename);
 }
