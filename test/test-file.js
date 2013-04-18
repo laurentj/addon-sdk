@@ -469,6 +469,67 @@ exports.testCopy = function(test) {
   file.remove(filename2);
 }
 
+exports.testCopyTree = function(test) {
+  function getCopyTreeFiles(rootName) {
+    let dir1 = file.join(profilePath, rootName, "subtree", "subsubtree");
+    let dir2 = file.join(profilePath, rootName, "subtree", "subsubtree2");
+    let dir3 = file.join(profilePath, rootName, "subtree2");
+    let dir4 = file.join(profilePath, rootName, "subtree");
+    let dir5 = file.join(profilePath, rootName);
+    let filename6 = file.join(dir5, 'fileInRootTree.txt');
+    let filename7 = file.join(dir4, 'fileInSubTree.txt');
+    let filename8 = file.join(dir3, 'fileInSubTree2.txt');
+    let filename9 = file.join(dir1, 'fileInSubSubTree.txt');
+    return ["", dir1, dir2, dir3, dir4, dir5, filename6, filename7, filename8, filename9];
+  }
+
+  let targetDir = file.join(profilePath, "newroottree");
+  let srcFiles = getCopyTreeFiles("roottree");
+  file.makeTree(srcFiles[1]);
+  file.makeTree(srcFiles[2]);
+  file.makeTree(srcFiles[3]);
+
+  file.write(srcFiles[6], "Hello file in roottree");
+  file.write(srcFiles[7], "Hello file in subtree");
+  file.write(srcFiles[8], "Hello file in subtree2");
+  file.write(srcFiles[9], "Hello file in subsubtree");
+
+  file.copyTree(srcFiles[5], targetDir);
+
+  let tgtFiles = getCopyTreeFiles("newroottree");
+
+  test.assert(file.exists(tgtFiles[1]),
+              "subsubtree should exists in newroottree after file.copyTree");
+  test.assert(file.exists(tgtFiles[2]),
+              "subsubtree2 should exists in newroottree after file.copyTree");
+  test.assert(file.exists(tgtFiles[3]),
+              "subtree2 should exists in newroottree after file.copyTree");
+  test.assert(file.exists(tgtFiles[6]),
+              "fileInRootTree.txt should exists in newroottree after file.copyTree");
+  test.assert(file.exists(tgtFiles[7]),
+              "fileInSubTree.txt should exists in newroottree after file.copyTree");
+  test.assert(file.exists(tgtFiles[8]),
+              "fileInSubTree2.txt should exists in newroottree after file.copyTree");
+  test.assert(file.exists(tgtFiles[9]),
+              "fileInSubSubTree.txt should exists in newroottree after file.copyTree");
+
+  let content = file.read(tgtFiles[6]);
+  test.assertEqual(content, "Hello file in roottree", "copy of fileInRootTree.txt should contain the same content as the source file");
+
+  content = file.read(tgtFiles[7]);
+  test.assertEqual(content, "Hello file in subtree", "copy of fileInSubTree.txt should contain the same content as the source file");
+
+  content = file.read(tgtFiles[8]);
+  test.assertEqual(content, "Hello file in subtree2", "copy of fileInSubTree2.txt should contain the same content as the source file");
+
+  content = file.read(tgtFiles[9]);
+  test.assertEqual(content, "Hello file in subsubtree", "copy of fileInSubSubTree.txt should contain the same content as the source file");
+
+  file.removeTree(srcFiles[5]);
+  file.removeTree(tgtFiles[5]);
+}
+
+
 exports.testRename = function(test) {
   let filename = file.join(profilePath, 'open.txt');
   let filename2 = file.join(profilePath, 'open2.txt');
